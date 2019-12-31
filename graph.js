@@ -17,20 +17,42 @@ const arcPath = d3.arc()
     .outerRadius(dims.radius)
     .innerRadius(dims.radius/2);
 
+const colour = d3.scaleOrdinal(d3['schemeSet3']); 
+
 //update function
 const update = (data) => {
+
+
+    //update colur scale domain
+    colour.domain(data.map(d => d.name));
     
     //join enhanced (pie) data to elements
     const paths = graph.selectAll('path')
         .data(pie(data));
-    console.log("TCL: update -> paths", paths)
+    
+    //Exit Selection
+    paths.exit()
+        .transition().duration(750)
+            .attrTween('d',arcTweenExit)
+        .remove();
+
+    //handle the current DOM path updates
+    paths.attr('d', arcPath)
+        .transition().duration(750)
+            .attrTween('d',arcTweenUpdate);
 
     paths.enter()
     .append('path')
       .attr('class', 'arc')
-      .attr('d', arcPath)
       .attr('stroke', '#fff')
-      .attr('stroke-width', 3);  
+      .attr('stroke-width', 3)
+      .attr('fill',d => colour(d.data.name))
+      .each(function (d) {
+          this._current = d
+      })
+      .transition().duration(750)
+        .attrTween('d',arcTweenEnter); 
+     
 };
 
 //data array on firestore
@@ -57,6 +79,39 @@ db.collection('expenses').onSnapshot(res => {
     });
     update(data);
 });
+
+const arcTweenEnter = (d) => {
+    var i = d3.interpolate(d.endAngle,d.startAngle);
+
+    return function(t){
+        d.startAngle = i(t);
+        return arcPath(d);
+    }
+}
+
+const arcTweenExit = (d) => {
+    var i = d3.interpolate(d.startAngle,d.endAngle);
+
+    return function(t){
+        d.startAngle = i(t);
+        return arcPath(d);
+    }
+}
+
+//use the function keyword for the use this
+
+function arcTweenUpdate(d) {
+    
+    //interpolate between the two objects
+    var i = d3.interpolate(this._current,d);
+
+    //update the current prop with the new
+    this._current = i(1);
+
+    return function (t) {
+        return arcPath(i(t));
+    }
+}
 
     
 
